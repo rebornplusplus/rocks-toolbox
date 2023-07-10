@@ -31,3 +31,4 @@ jobs:
           body: ${{ steps.tag_version.outputs.changelog }}
           generateReleaseNotes: true
           skipIfReleaseExists: true
+          artifacts: "LICENSE,README.md,chisel-wrapper"
