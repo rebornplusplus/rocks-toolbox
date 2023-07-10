@@ -52,4 +52,4 @@ jobs:
           body: ${CHANGELOG}
           generateReleaseNotes: true
           skipIfReleaseExists: true
-          artifacts: dist/$ARCHIVE_FILE
+          artifacts: dist/${{ steps.prep_archive.outputs.ARCHIVE_FILE }}
