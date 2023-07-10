@@ -42,14 +42,10 @@ jobs:
       - name: Create GitHub release
         uses: ncipollo/release-action@v1.12.0
         if: startsWith(${{ steps.tag_version.outputs.new_tag }}, 'v')
-        env:
-          TAG: ${{ steps.tag_version.outputs.new_tag }}
-          CHANGELOG: ${{ steps.tag_version.outputs.changelog }}
-          ARCHIVE_FILE: ${{ steps.prep_archive.outputs.ARCHIVE_FILE }}
         with:
-          name: ${TAG}
-          tag: ${TAG}
-          body: ${CHANGELOG}
+          name: ${{ steps.tag_version.outputs.new_tag }}
+          tag: ${{ steps.tag_version.outputs.new_tag }}
+          body: ${{ steps.tag_version.outputs.changelog }}
           generateReleaseNotes: true
           skipIfReleaseExists: true
           artifacts: dist/${{ steps.prep_archive.outputs.ARCHIVE_FILE }}
