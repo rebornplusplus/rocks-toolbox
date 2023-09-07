@@ -1,0 +1,149 @@
+#!/bin/bash
+
+set -eu
+
+CHISEL_BIN=${CHISEL_BIN:-"chisel"}
+
+arches=(
+	"amd64"
+	"arm64"
+	"armhf"
+	"i386"
+	"ppc64el"
+	"s390x"
+	"riscv64"
+)
+
+# if set, the script will only verify the files changed
+# since this git ref.
+git_ref=""
+
+# store summary to print at exit
+summary=()
+
+print_error() {
+	echo "Error:" "$@" >&2
+}
+
+print_usage() {
+	cat <<- EOF
+	Usage: $(basename "$0") [OPTIONS]
+
+	This script verifies chisel slice definition files by installing
+	the slices on different arch.
+
+	[OPTIONS]
+
+	  -g, --git-ref <ref>
+	      If specified, only the files changed since this git reference
+	      will be verified. Otherwise, all the slices in the slices/ dir
+	      will be checked.
+
+	  -h, --help
+	      Print this help information and quit.
+
+	ENVIRONMENT VARIABLES
+
+	  CHISEL_BIN
+	      Set CHISEL_BIN to the location of the chisel binary.
+	      By default, it will look for "chisel" in PATH.
+	EOF
+}
+
+print_summary() {
+	echo -e "\nSUMMARY"
+	echo "------------------"
+	for story in "${summary[@]}"; do
+		echo -e "$story"
+	done
+}
+trap print_summary EXIT
+
+parse_slice_names() {
+	if [ ! "$(which shyaml /dev/null)" ]; then
+		print_error "shyaml is not found"
+		exit 1
+	fi
+
+	local filename pkg slices
+	filename="$1"
+	pkg="$(< "$filename" shyaml get-value package)"
+	slices="$(< "$filename" shyaml keys slices)"
+
+	for s in $slices; do
+		echo "$pkg"_"$s"
+	done
+}
+
+install_slice_on_arch() {
+	local slice arch out status
+	slice="$1"
+	arch="$2"
+	out="$(mktemp -d)"
+	status="OK"
+
+	echo -e "\ninstall $slice on $arch...\n"
+	"$CHISEL_BIN" cut --release ./ --arch "$arch" --root "$out" "$slice" || status="FAILED"
+	summary+=("install $slice on $arch... $status")
+}
+
+install_all_slices() {
+	local filename
+	filename="$1"
+
+	slices="$(parse_slice_names "$filename")"
+	for arch in "${arches[@]}"; do
+		for slice in $slices; do
+			install_slice_on_arch "$slice" "$arch"
+		done
+	done
+}
+
+parse_files_to_check() {
+	local files
+	files="slices/*"
+	if [ -n "$git_ref" ]; then
+		files="$(git diff "$git_ref" --name-only -- slices/)"
+	fi
+	echo "$files"
+}
+
+run() {
+	files="$(parse_files_to_check)"
+
+	echo "Verify the slices in the following files:"
+	for f in $files; do
+		echo "- $f"
+	done
+
+	for f in $files; do
+		install_all_slices "$f"
+	done
+}
+
+while (( "$#" )); do
+	case "$1" in
+		-g|--git-ref)
+			if (( "$#" < 2 )); then
+				print_error "Please specify git ref."
+				exit 1
+			fi
+			git_ref="$2"
+			shift 2
+			;;
+		-h|--help)
+			print_usage
+			exit 0
+			;;
+		-*)
+			echo "Unknown option: $1"
+			exit 1
+			;;
+		*)
+			echo "Unexpected argument: $1"
+			exit 1
+			;;
+	esac
+done
+
+run
